@@ -61,7 +61,7 @@ class main_listener implements EventSubscriberInterface
 	static public function getSubscribedEvents()
 	{
 		return array(
-			'core.modify_posting_parameters'			=> 'modify_posting_parameters',
+			'core.modify_posting_auth'					=> 'modify_posting_auth',
 			'core.posting_modify_submit_post_after'		=> 'posting_modify_submit_post_after',
 			'core.viewtopic_modify_page_title'			=> 'viewtopic_modify_page_title',
 			'core.viewforum_modify_topics_data'			=> 'viewforum_modify_topics_data',
@@ -76,7 +76,7 @@ class main_listener implements EventSubscriberInterface
 	 *
 	 * @param \phpbb\event\data	$event	Event object
 	 */
-	public function modify_posting_parameters($event)
+	public function modify_posting_auth($event)
 	{
 		$mode = $event['mode'];
 		$topic_id = false;
@@ -100,10 +100,15 @@ class main_listener implements EventSubscriberInterface
 			$this->db->sql_freeresult($result);
 		}
 
-		if ($mode == 'post' || ($post_id == $topic_first_post_id))
+		if ($mode == 'post' || ($post_id > 0 && $post_id == $topic_first_post_id))
 		{
 			$this->user->add_lang_ext('davidiq/topictitlecolor', 'topictitlecolor');
-			$this->template->assign_var('S_TOPIC_TITLE_COLOR', true);
+			$title_color = strtoupper($this->request->variable('title_color', ''));
+			$this->template->assign_vars(array(
+				'S_TOPIC_TITLE_COLOR'	=> true,
+				'TITLE_COLOR'			=> $title_color,
+				'S_TOPIC_PREVIEW'		=> true,
+			));
 		}
 
 		$this->get_topic_color($topic_id);
@@ -203,6 +208,11 @@ class main_listener implements EventSubscriberInterface
 				$forum_last_post_ids[] = $row['forum_last_post_id'];
 			}
 		}
+		
+		if (!count($forum_last_post_ids))
+		{
+			return;
+		}
 
 		$sql_array = array(
 			'SELECT'	=> 'sc.topic_id, sc.title_color, p.post_id',
@@ -245,8 +255,8 @@ class main_listener implements EventSubscriberInterface
 	/**
 	 * Retrieve the title color
 	 *
-	 * @param $topic_ids the topic id array for which to retrieve the color
-	 * @param $topic_rowset the topic rowset data
+	 * @param $topic_ids 	array 			the topic id array for which to retrieve the color
+	 * @param $topic_rowset array|boolean 	the topic rowset data
 	 * @return string   the title color code
 	 */
 	private function get_topic_color($topic_ids, &$topic_rowset = false)
@@ -293,8 +303,9 @@ class main_listener implements EventSubscriberInterface
 	/**
 	 * Colors the topic titles that are in lists
 	 *
-	 * @param $row
-	 * @param $list_row
+	 * @param $row			array	The topic row
+	 * @param $list_row		array	The list row
+	 * @param $title_key	string	The key for the title
 	 * @return mixed
 	 */
 	private function color_title_in_list($row, $list_row, $title_key)
